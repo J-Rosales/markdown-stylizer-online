@@ -1,0 +1,16 @@
+---
+description: Git workflow trigger words and merge protocol
+alwaysApply: true
+---
+
+# Git workflow trigger words
+
+Use these exact phrases (uppercase) to authorize git operations:
+
+- `SHIP IT`: Create a new branch (kebab case name chosen by the agent), stage all
+  changes, commit, push, open a PR to `main`, then ask for confirmation before
+  merging.
+- `SHIP IT NOW`: Same as above, but merge into `main` immediately after the PR is
+  created.
+
+If the trigger phrase is not present, do not push, create PRs, or merge.
