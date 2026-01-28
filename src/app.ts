@@ -283,7 +283,17 @@ if (app) {
       </section>
     </main>
     <footer class="app-footer">
-      <div id="offline-status" class="offline-status">Offline status: unknown</div>
+      <div class="footer-stats">
+        <span id="char-count">Chars: 0</span>
+        <span id="word-count">Words: 0</span>
+        <span id="line-count">Lines: 0</span>
+      </div>
+      <div class="footer-actions">
+        <div id="offline-status" class="offline-status">Offline status: unknown</div>
+        <button id="settings-button" class="action-button" type="button">
+          Settings
+        </button>
+      </div>
     </footer>
   `;
 
@@ -309,6 +319,10 @@ if (app) {
   const exportStatus = app.querySelector<HTMLDivElement>("#export-status");
   const imageStatus = app.querySelector<HTMLDivElement>("#image-status");
   const offlineStatus = app.querySelector<HTMLDivElement>("#offline-status");
+  const charCount = app.querySelector<HTMLSpanElement>("#char-count");
+  const wordCount = app.querySelector<HTMLSpanElement>("#word-count");
+  const lineCount = app.querySelector<HTMLSpanElement>("#line-count");
+  const settingsButton = app.querySelector<HTMLButtonElement>("#settings-button");
   const fontSizeValue = app.querySelector<HTMLSpanElement>("#font-size-value");
   const lineHeightValue =
     app.querySelector<HTMLSpanElement>("#line-height-value");
@@ -337,6 +351,10 @@ if (app) {
     !exportStatus ||
     !imageStatus ||
     !offlineStatus ||
+    !charCount ||
+    !wordCount ||
+    !lineCount ||
+    !settingsButton ||
     !fontSizeValue ||
     !lineHeightValue ||
     !maxWidthValue ||
@@ -613,6 +631,18 @@ if (app) {
       void handleImageFiles(files);
     }
   });
+
+  const updateFooterStats = () => {
+    const text = editor.value;
+    charCount.textContent = `Chars: ${text.length}`;
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    wordCount.textContent = `Words: ${words}`;
+    const lines = text.split("\n").length;
+    lineCount.textContent = `Lines: ${lines}`;
+  };
+
+  updateFooterStats();
+  editor.addEventListener("input", updateFooterStats);
 
   const getEffectiveMaxPages = () =>
     settings.advancedPages ? settings.maxPages : 10;
@@ -941,4 +971,41 @@ if (app) {
     void updateOfflineStatus();
   });
   void updateOfflineStatus();
+
+  const buildSettingsDialog = () => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal">
+        <h3>Settings</h3>
+        <button id="reset-warnings" type="button">Reset warning flags</button>
+        <div class="modal-actions">
+          <button id="settings-close" type="button">Close</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const resetWarnings = overlay.querySelector<HTMLButtonElement>(
+      "#reset-warnings"
+    );
+    const close = overlay.querySelector<HTMLButtonElement>("#settings-close");
+
+    if (!resetWarnings || !close) {
+      overlay.remove();
+      return;
+    }
+
+    resetWarnings.addEventListener("click", () => {
+      updateSettings({ warnOnOfflineFont: true });
+    });
+    close.addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        overlay.remove();
+      }
+    });
+  };
+
+  settingsButton.addEventListener("click", buildSettingsDialog);
 }
