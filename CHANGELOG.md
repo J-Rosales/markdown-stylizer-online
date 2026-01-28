@@ -8,3 +8,6 @@
 - Milestone 4: add paste/drag-drop images with IndexedDB storage.
 - Milestone 5: add pagination + rasterizer pipeline for PNG export.
 - Milestone 6: add PNG ZIP export and first-page download.
+- Milestone 7: add PDF export with filename controls.
+- Milestone 8: add Google Fonts import and offline caching flow.
+- Milestone 9: add offline hardening with app-shell caching.

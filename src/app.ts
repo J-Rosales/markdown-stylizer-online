@@ -282,6 +282,9 @@ if (app) {
         </div>
       </section>
     </main>
+    <footer class="app-footer">
+      <div id="offline-status" class="offline-status">Offline status: unknown</div>
+    </footer>
   `;
 
   const editor = app.querySelector<HTMLTextAreaElement>("#editor");
@@ -305,6 +308,7 @@ if (app) {
   const exportPdfButton = app.querySelector<HTMLButtonElement>("#export-pdf");
   const exportStatus = app.querySelector<HTMLDivElement>("#export-status");
   const imageStatus = app.querySelector<HTMLDivElement>("#image-status");
+  const offlineStatus = app.querySelector<HTMLDivElement>("#offline-status");
   const fontSizeValue = app.querySelector<HTMLSpanElement>("#font-size-value");
   const lineHeightValue =
     app.querySelector<HTMLSpanElement>("#line-height-value");
@@ -332,6 +336,7 @@ if (app) {
     !exportPdfButton ||
     !exportStatus ||
     !imageStatus ||
+    !offlineStatus ||
     !fontSizeValue ||
     !lineHeightValue ||
     !maxWidthValue ||
@@ -899,4 +904,41 @@ if (app) {
 
   updateFontStatusLabel("not_cached");
   void ensureFontLoaded(settings.fontFamily);
+
+  const updateOfflineStatus = async () => {
+    const isOnline = navigator.onLine;
+    const baseUrl =
+      typeof import.meta !== "undefined" && import.meta.env?.BASE_URL
+        ? import.meta.env.BASE_URL
+        : "/";
+    const indexUrl = new URL("index.html", `${window.location.origin}${baseUrl}`)
+      .toString();
+    let cached = false;
+    try {
+      const match = await caches.match(indexUrl);
+      cached = Boolean(match);
+    } catch {
+      cached = false;
+    }
+    const label = !isOnline
+      ? cached
+        ? "Offline ready"
+        : "Offline (not cached)"
+      : cached
+      ? "Offline ready"
+      : "Online";
+    offlineStatus.textContent = `Offline status: ${label}`;
+    offlineStatus.dataset.status = cached ? "ready" : isOnline ? "online" : "offline";
+  };
+
+  window.addEventListener("online", () => {
+    void updateOfflineStatus();
+  });
+  window.addEventListener("offline", () => {
+    void updateOfflineStatus();
+  });
+  navigator.serviceWorker?.addEventListener("controllerchange", () => {
+    void updateOfflineStatus();
+  });
+  void updateOfflineStatus();
 }
