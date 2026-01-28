@@ -1,8 +1,12 @@
 import DOMPurify from "dompurify";
 import MarkdownIt from "markdown-it";
+import { Editor } from "@tiptap/core";
+import StarterKit from "@tiptap/starter-kit";
+import Image from "@tiptap/extension-image";
+import Markdown from "@tiptap/extension-markdown";
 import {
   MAX_IMAGE_BYTES,
-  insertAtCursor,
+  applyImageOptions,
   resolveAppImages,
   storeImageFile,
 } from "./assets/images";
@@ -233,6 +237,23 @@ if (app) {
             <select id="font-select"></select>
           </label>
           <div class="font-status" id="font-status">Font status: unknown</div>
+          <label class="control control-toggle">
+            <span>Show guides</span>
+            <input id="show-guides" type="checkbox" />
+            <span class="control-hint">Margin + padding</span>
+          </label>
+          <div class="control-group">
+            <span class="control-label">Margins</span>
+            <button class="preset-button" type="button" data-margin="12">Compact</button>
+            <button class="preset-button" type="button" data-margin="20">Default</button>
+            <button class="preset-button" type="button" data-margin="28">Spacious</button>
+          </div>
+          <div class="control-group">
+            <span class="control-label">Padding</span>
+            <button class="preset-button" type="button" data-padding="12">Compact</button>
+            <button class="preset-button" type="button" data-padding="24">Default</button>
+            <button class="preset-button" type="button" data-padding="36">Spacious</button>
+          </div>
           </div>
           <div class="controls-section">
             <div class="controls-section-title">Export</div>
@@ -266,11 +287,14 @@ if (app) {
           <button id="export-pdf" class="action-button" type="button">
             Export PDF
           </button>
+          <button id="rasterize-preview" class="action-button" type="button">
+            Rasterize preview
+          </button>
           <div id="export-status" class="status" role="status" aria-live="polite"></div>
           </div>
         </div>
         <div id="image-status" class="status" role="status" aria-live="polite"></div>
-        <textarea id="editor" spellcheck="false"></textarea>
+        <div id="editor" class="editor"></div>
       </section>
       <section class="pane">
         <div class="pane-title">Preview</div>
@@ -283,11 +307,21 @@ if (app) {
       </section>
     </main>
     <footer class="app-footer">
-      <div id="offline-status" class="offline-status">Offline status: unknown</div>
+      <div class="footer-stats">
+        <span id="char-count">Chars: 0</span>
+        <span id="word-count">Words: 0</span>
+        <span id="line-count">Lines: 0</span>
+      </div>
+      <div class="footer-actions">
+        <div id="offline-status" class="offline-status">Offline status: unknown</div>
+        <button id="settings-button" class="action-button" type="button">
+          Settings
+        </button>
+      </div>
     </footer>
   `;
 
-  const editor = app.querySelector<HTMLTextAreaElement>("#editor");
+  const editorRoot = app.querySelector<HTMLDivElement>("#editor");
   const preview = app.querySelector<HTMLDivElement>("#preview");
   const themeSelect = app.querySelector<HTMLSelectElement>("#theme-select");
   const fontSize = app.querySelector<HTMLInputElement>("#font-size");
@@ -297,6 +331,13 @@ if (app) {
   const allowLarge = app.querySelector<HTMLInputElement>("#allow-large");
   const fontSelect = app.querySelector<HTMLSelectElement>("#font-select");
   const fontStatus = app.querySelector<HTMLDivElement>("#font-status");
+  const showGuides = app.querySelector<HTMLInputElement>("#show-guides");
+  const marginPresets = app.querySelectorAll<HTMLButtonElement>(
+    "[data-margin]"
+  );
+  const paddingPresets = app.querySelectorAll<HTMLButtonElement>(
+    "[data-padding]"
+  );
   const advancedPages = app.querySelector<HTMLInputElement>("#advanced-pages");
   const maxPages = app.querySelector<HTMLInputElement>("#max-pages");
   const pdfMethod = app.querySelector<HTMLSelectElement>("#pdf-method");
@@ -306,9 +347,15 @@ if (app) {
     "#export-first-page"
   );
   const exportPdfButton = app.querySelector<HTMLButtonElement>("#export-pdf");
+  const rasterizePreview =
+    app.querySelector<HTMLButtonElement>("#rasterize-preview");
   const exportStatus = app.querySelector<HTMLDivElement>("#export-status");
   const imageStatus = app.querySelector<HTMLDivElement>("#image-status");
   const offlineStatus = app.querySelector<HTMLDivElement>("#offline-status");
+  const charCount = app.querySelector<HTMLSpanElement>("#char-count");
+  const wordCount = app.querySelector<HTMLSpanElement>("#word-count");
+  const lineCount = app.querySelector<HTMLSpanElement>("#line-count");
+  const settingsButton = app.querySelector<HTMLButtonElement>("#settings-button");
   const fontSizeValue = app.querySelector<HTMLSpanElement>("#font-size-value");
   const lineHeightValue =
     app.querySelector<HTMLSpanElement>("#line-height-value");
@@ -317,7 +364,7 @@ if (app) {
     app.querySelector<HTMLSpanElement>("#para-spacing-value");
 
   if (
-    !editor ||
+    !editorRoot ||
     !preview ||
     !themeSelect ||
     !fontSize ||
@@ -327,6 +374,7 @@ if (app) {
     !allowLarge ||
     !fontSelect ||
     !fontStatus ||
+    !showGuides ||
     !advancedPages ||
     !maxPages ||
     !pdfMethod ||
@@ -334,9 +382,14 @@ if (app) {
     !exportPng ||
     !exportFirstPage ||
     !exportPdfButton ||
+    !rasterizePreview ||
     !exportStatus ||
     !imageStatus ||
     !offlineStatus ||
+    !charCount ||
+    !wordCount ||
+    !lineCount ||
+    !settingsButton ||
     !fontSizeValue ||
     !lineHeightValue ||
     !maxWidthValue ||
@@ -388,6 +441,13 @@ if (app) {
   populateFontOptions();
   fontSelect.value = settings.fontFamily;
 
+  const setGuideVisibility = (enabled: boolean) => {
+    const pageShell = app.querySelector<HTMLElement>(".page-shell");
+    const previewScroll = app.querySelector<HTMLElement>(".preview-scroll");
+    pageShell?.classList.toggle("show-guides", enabled);
+    previewScroll?.classList.toggle("show-guides", enabled);
+  };
+
   const ensureFontLoaded = async (familyName: string) => {
     if (familyName === "System") {
       updateFontStatusLabel("cached");
@@ -428,12 +488,15 @@ if (app) {
 
   refreshLabels();
 
+  let currentMarkdown = starterText;
+
   const render = () => {
-    const rawHtml = md.render(editor.value);
+    const rawHtml = md.render(currentMarkdown);
     preview.innerHTML = DOMPurify.sanitize(rawHtml, {
       ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|appimg):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
     });
     void resolveAppImages(preview);
+    applyImageOptions(preview);
   };
 
   const renderDebounced = debounce(render, 120);
@@ -445,10 +508,18 @@ if (app) {
     refreshLabels();
   };
 
-  editor.value = starterText;
-  render();
+  const editorInstance = new Editor({
+    element: editorRoot,
+    extensions: [StarterKit, Image, Markdown],
+    content: md.render(starterText),
+    onUpdate: ({ editor }) => {
+      currentMarkdown = editor.storage.markdown.getMarkdown();
+      renderDebounced();
+      updateFooterStats();
+    },
+  });
 
-  editor.addEventListener("input", renderDebounced);
+  render();
 
   themeSelect.addEventListener("change", () => {
     updateSettings({ theme: themeSelect.value as ThemeId });
@@ -477,6 +548,28 @@ if (app) {
     }
     updateSettings({ fontFamily: fontSelect.value });
     await ensureFontLoaded(fontSelect.value);
+  });
+  showGuides.addEventListener("change", () => {
+    setGuideVisibility(showGuides.checked);
+  });
+  marginPresets.forEach((button) => {
+    button.addEventListener("click", () => {
+      const value = button.dataset.margin;
+      if (value) {
+        document.documentElement.style.setProperty("--page-margin", `${value}mm`);
+      }
+    });
+  });
+  paddingPresets.forEach((button) => {
+    button.addEventListener("click", () => {
+      const value = button.dataset.padding;
+      if (value) {
+        document.documentElement.style.setProperty(
+          "--preview-container-padding",
+          `${value}px`
+        );
+      }
+    });
   });
   advancedPages.addEventListener("change", () => {
     maxPages.disabled = !advancedPages.checked;
@@ -569,11 +662,16 @@ if (app) {
     results.forEach((result) => {
       if ("markdown" in result) {
         inserted += 1;
-        insertAtCursor(editor, result.markdown);
+        editorInstance.commands.setImage({
+          src: result.src,
+          alt: result.alt,
+          title: "",
+        });
       } else {
         errors.push(`${result.name}: ${result.reason}`);
       }
     });
+    void resolveAppImages(editorRoot);
 
     if (errors.length > 0) {
       setStatus(errors.join(" "));
@@ -582,7 +680,7 @@ if (app) {
     }
   };
 
-  editor.addEventListener("paste", (event) => {
+  editorRoot.addEventListener("paste", (event) => {
     const items = event.clipboardData?.items;
     if (!items) {
       return;
@@ -602,17 +700,28 @@ if (app) {
     }
   });
 
-  editor.addEventListener("dragover", (event) => {
+  editorRoot.addEventListener("dragover", (event) => {
     event.preventDefault();
   });
 
-  editor.addEventListener("drop", (event) => {
+  editorRoot.addEventListener("drop", (event) => {
     event.preventDefault();
     const files = event.dataTransfer?.files;
     if (files && files.length > 0) {
       void handleImageFiles(files);
     }
   });
+
+  const updateFooterStats = () => {
+    const text = currentMarkdown;
+    charCount.textContent = `Chars: ${text.length}`;
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    wordCount.textContent = `Words: ${words}`;
+    const lines = text.split("\n").length;
+    lineCount.textContent = `Lines: ${lines}`;
+  };
+
+  updateFooterStats();
 
   const getEffectiveMaxPages = () =>
     settings.advancedPages ? settings.maxPages : 10;
@@ -659,7 +768,7 @@ if (app) {
     if (inputValue) {
       return inputValue;
     }
-    const headerValue = fallbackFromMarkdown(editor.value);
+    const headerValue = fallbackFromMarkdown(currentMarkdown);
     if (headerValue) {
       return headerValue;
     }
@@ -804,6 +913,37 @@ if (app) {
     }
   });
 
+  rasterizePreview.addEventListener("click", async () => {
+    const pageShell = app.querySelector<HTMLElement>(".page-shell");
+    if (!pageShell) {
+      throw new Error("Page shell missing.");
+    }
+    rasterizePreview.disabled = true;
+    setExportStatus("Rasterizing preview...");
+    try {
+      const result = await rasterizePages({
+        previewContent: preview,
+        pageShell,
+        maxPages: getEffectiveMaxPages(),
+        scale: 2,
+      });
+      if (result.pages[0]) {
+        window.open(result.pages[0], "_blank", "noopener,noreferrer");
+      }
+      setExportStatus(
+        `Rasterized ${result.pages.length} page${
+          result.pages.length > 1 ? "s" : ""
+        }.`
+      );
+    } catch (error) {
+      setExportStatus(
+        error instanceof Error ? error.message : "Rasterize failed."
+      );
+    } finally {
+      rasterizePreview.disabled = false;
+    }
+  });
+
   (window as Window & { msoRasterizePages?: typeof runRasterize }).msoRasterizePages =
     runRasterize;
 
@@ -904,6 +1044,7 @@ if (app) {
 
   updateFontStatusLabel("not_cached");
   void ensureFontLoaded(settings.fontFamily);
+  setGuideVisibility(false);
 
   const updateOfflineStatus = async () => {
     const isOnline = navigator.onLine;
@@ -941,4 +1082,41 @@ if (app) {
     void updateOfflineStatus();
   });
   void updateOfflineStatus();
+
+  const buildSettingsDialog = () => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal">
+        <h3>Settings</h3>
+        <button id="reset-warnings" type="button">Reset warning flags</button>
+        <div class="modal-actions">
+          <button id="settings-close" type="button">Close</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const resetWarnings = overlay.querySelector<HTMLButtonElement>(
+      "#reset-warnings"
+    );
+    const close = overlay.querySelector<HTMLButtonElement>("#settings-close");
+
+    if (!resetWarnings || !close) {
+      overlay.remove();
+      return;
+    }
+
+    resetWarnings.addEventListener("click", () => {
+      updateSettings({ warnOnOfflineFont: true });
+    });
+    close.addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        overlay.remove();
+      }
+    });
+  };
+
+  settingsButton.addEventListener("click", buildSettingsDialog);
 }

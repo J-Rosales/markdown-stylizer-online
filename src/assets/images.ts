@@ -33,6 +33,8 @@ export type StoreImageResult = {
   id: string;
   markdown: string;
   name: string;
+  alt: string;
+  src: string;
 };
 
 export type StoreImageError = {
@@ -56,6 +58,7 @@ export const storeImageFile = async (
 
   const id = crypto.randomUUID();
   const alt = fallbackAlt(file.name);
+  const src = `appimg://${id}`;
   await putImage({
     id,
     name: file.name || "image",
@@ -68,7 +71,9 @@ export const storeImageFile = async (
   return {
     id,
     name: file.name || "image",
-    markdown: `![${alt}](appimg://${id})`,
+    markdown: `![${alt}](${src})`,
+    alt,
+    src,
   };
 };
 
@@ -94,6 +99,53 @@ export const resolveAppImages = async (
       img.src = url;
     })
   );
+};
+
+const parseTitleOptions = (title: string) => {
+  const options: Record<string, string> = {};
+  title
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .forEach((part) => {
+      const [key, value] = part.split("=");
+      if (key && value) {
+        options[key.toLowerCase()] = value;
+      }
+    });
+  return options;
+};
+
+export const applyImageOptions = (container: HTMLElement): void => {
+  const images = Array.from(container.querySelectorAll("img"));
+  images.forEach((img) => {
+    const title = img.getAttribute("title") ?? "";
+    if (!title) {
+      return;
+    }
+    const options = parseTitleOptions(title);
+    img.classList.remove("align-left", "align-right", "align-center");
+    img.style.width = "";
+    img.style.float = "";
+    img.style.marginLeft = "";
+    img.style.marginRight = "";
+    if (options.width) {
+      const widthValue = options.width.endsWith("%")
+        ? options.width
+        : `${Number(options.width)}px`;
+      if (!Number.isNaN(Number(options.width)) || options.width.endsWith("%")) {
+        img.style.width = widthValue;
+      }
+    }
+    const align = options.align?.toLowerCase();
+    if (align === "left") {
+      img.classList.add("align-left");
+    } else if (align === "right") {
+      img.classList.add("align-right");
+    } else if (align === "center") {
+      img.classList.add("align-center");
+    }
+  });
 };
 
 export const insertAtCursor = (

@@ -14,6 +14,7 @@ body {
   --page-height: 297mm;
   --page-margin: 20mm;
   --preview-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --preview-container-padding: 24px;
 }
 
 #app {
@@ -36,7 +37,22 @@ body {
 
 .app-footer {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.footer-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .offline-status {
@@ -108,6 +124,30 @@ body {
   font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.control-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.control-label {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.preset-button {
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
 }
 
 .control {
@@ -242,16 +282,19 @@ body {
 }
 #editor {
   flex: 1;
-  resize: none;
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   padding: 12px;
-  font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco,
-    Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 14px;
-  line-height: 1.5;
   color: var(--text-primary);
   background: var(--panel-bg);
+}
+
+#editor .ProseMirror {
+  min-height: 220px;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .preview-scroll {
@@ -259,8 +302,13 @@ body {
   overflow: auto;
   border: 1px solid var(--panel-border);
   border-radius: 10px;
-  padding: 24px;
+  padding: var(--preview-container-padding);
   background: rgba(148, 163, 184, 0.12);
+}
+
+.preview-scroll.show-guides {
+  outline: 1px dashed #94a3b8;
+  outline-offset: -6px;
 }
 
 .page-shell {
@@ -270,6 +318,14 @@ body {
   background: var(--panel-bg);
   position: relative;
   box-shadow: 0 10px 20px var(--shadow-color);
+}
+
+.page-shell.show-guides::after {
+  content: "";
+  position: absolute;
+  inset: var(--page-margin);
+  border: 1px dashed #94a3b8;
+  pointer-events: none;
 }
 
 .page-marker {
@@ -334,6 +390,21 @@ body {
 .preview-content img {
   max-width: 100%;
   height: auto;
+}
+
+.preview-content img.align-left {
+  float: left;
+  margin: 0 12px 12px 0;
+}
+
+.preview-content img.align-right {
+  float: right;
+  margin: 0 0 12px 12px;
+}
+
+.preview-content img.align-center {
+  display: block;
+  margin: 0 auto 12px;
 }
 
 .preview-content img.image-missing {
