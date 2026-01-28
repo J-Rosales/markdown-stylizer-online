@@ -135,6 +135,7 @@ Deliverables:
 - UI status:
   - cached / not cached / error
 - Export warning if selected font not available offline.
+  - Note: migrate to Cache Storage for fonts; keep current caching behavior for now.
 
 Acceptance:
 - When online: selecting a Google font applies it.
