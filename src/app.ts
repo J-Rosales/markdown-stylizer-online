@@ -7,9 +7,21 @@ import {
   storeImageFile,
 } from "./assets/images";
 import { downloadBlob } from "./export/download";
+import {
+  FontStatus,
+  getStoredVariants,
+  loadFontFamilyFromCache,
+  loadFontFamily,
+  normalizeFontInput,
+  popularFonts,
+  resolveFontVariants,
+  getFontCacheStatus,
+  storeFontVariants,
+} from "./fonts/fonts";
 import { exportPngZip } from "./export/exportPngZip";
 import { exportPdf } from "./export/exportPdf";
 import { rasterizePages } from "./export/rasterize";
+import { registerServiceWorker } from "./sw/register";
 import "./style.css";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -32,6 +44,8 @@ type AppSettings = {
   maxPages: number;
   advancedPages: boolean;
   pdfMethod: "html2pdf";
+  fontFamily: string;
+  warnOnOfflineFont: boolean;
 };
 
 const themes: Record<ThemeId, Record<string, string>> = {
@@ -87,6 +101,8 @@ const defaultSettings: AppSettings = {
   maxPages: 10,
   advancedPages: false,
   pdfMethod: "html2pdf",
+  fontFamily: "System",
+  warnOnOfflineFont: true,
 };
 
 const settingsKey = "mso-settings";
@@ -129,6 +145,12 @@ const applySettings = (settings: AppSettings) => {
     "--preview-paragraph-spacing",
     `${settings.paragraphSpacing}px`
   );
+  document.documentElement.style.setProperty(
+    "--preview-font-family",
+    settings.fontFamily === "System"
+      ? "system-ui, -apple-system, \"Segoe UI\", sans-serif"
+      : `"${settings.fontFamily}", system-ui, -apple-system, "Segoe UI", sans-serif`
+  );
 };
 
 const starterText = `# Markdown Stylizer Online
@@ -153,6 +175,8 @@ const debounce = (fn: () => void, waitMs: number) => {
     handle = window.setTimeout(fn, waitMs);
   };
 };
+
+registerServiceWorker();
 
 if (app) {
   app.innerHTML = `
@@ -204,6 +228,11 @@ if (app) {
               Default limit: ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB
             </span>
           </label>
+          <label class="control">
+            Font
+            <select id="font-select"></select>
+          </label>
+          <div class="font-status" id="font-status">Font status: unknown</div>
           </div>
           <div class="controls-section">
             <div class="controls-section-title">Export</div>
@@ -263,6 +292,8 @@ if (app) {
   const maxWidth = app.querySelector<HTMLInputElement>("#max-width");
   const paraSpacing = app.querySelector<HTMLInputElement>("#para-spacing");
   const allowLarge = app.querySelector<HTMLInputElement>("#allow-large");
+  const fontSelect = app.querySelector<HTMLSelectElement>("#font-select");
+  const fontStatus = app.querySelector<HTMLDivElement>("#font-status");
   const advancedPages = app.querySelector<HTMLInputElement>("#advanced-pages");
   const maxPages = app.querySelector<HTMLInputElement>("#max-pages");
   const pdfMethod = app.querySelector<HTMLSelectElement>("#pdf-method");
@@ -290,6 +321,8 @@ if (app) {
     !maxWidth ||
     !paraSpacing ||
     !allowLarge ||
+    !fontSelect ||
+    !fontStatus ||
     !advancedPages ||
     !maxPages ||
     !pdfMethod ||
@@ -316,6 +349,66 @@ if (app) {
   maxWidth.value = settings.maxWidth.toString();
   paraSpacing.value = settings.paragraphSpacing.toString();
   allowLarge.checked = settings.allowLargeImages;
+  const updateFontStatusLabel = (status: FontStatus) => {
+    const label =
+      status === "cached"
+        ? "Font status: cached"
+        : status === "not_cached"
+        ? "Font status: not cached"
+        : "Font status: error";
+    fontStatus.textContent = label;
+    fontStatus.dataset.status = status;
+  };
+
+  const populateFontOptions = () => {
+    fontSelect.innerHTML = "";
+    const systemOption = document.createElement("option");
+    systemOption.value = "System";
+    systemOption.textContent = "System";
+    fontSelect.appendChild(systemOption);
+
+    popularFonts.forEach((font) => {
+      const option = document.createElement("option");
+      option.value = font;
+      option.textContent = font;
+      fontSelect.appendChild(option);
+    });
+
+    const importOption = document.createElement("option");
+    importOption.value = "__import__";
+    importOption.textContent = "Import from Google Fonts...";
+    fontSelect.appendChild(importOption);
+  };
+
+  populateFontOptions();
+  fontSelect.value = settings.fontFamily;
+
+  const ensureFontLoaded = async (familyName: string) => {
+    if (familyName === "System") {
+      updateFontStatusLabel("cached");
+      return;
+    }
+    const stored = getStoredVariants(familyName);
+    if (stored) {
+      try {
+        await loadFontFamilyFromCache(familyName, stored);
+        updateFontStatusLabel("cached");
+        return;
+      } catch {
+        // fall through to network load
+      }
+    }
+    try {
+      const variants = stored ?? (await resolveFontVariants(familyName));
+      storeFontVariants(familyName, variants);
+      const status = await getFontCacheStatus(variants);
+      updateFontStatusLabel(status);
+      await loadFontFamily(familyName, variants);
+      updateFontStatusLabel("cached");
+    } catch {
+      updateFontStatusLabel("error");
+    }
+  };
   advancedPages.checked = settings.advancedPages;
   maxPages.value = settings.maxPages.toString();
   maxPages.disabled = !settings.advancedPages;
@@ -370,6 +463,16 @@ if (app) {
   allowLarge.addEventListener("change", () => {
     updateSettings({ allowLargeImages: allowLarge.checked });
   });
+  fontSelect.addEventListener("change", async () => {
+    if (fontSelect.value === "__import__") {
+      fontSelect.value = settings.fontFamily;
+      const dialog = buildImportDialog();
+      dialog?.input.focus();
+      return;
+    }
+    updateSettings({ fontFamily: fontSelect.value });
+    await ensureFontLoaded(fontSelect.value);
+  });
   advancedPages.addEventListener("change", () => {
     maxPages.disabled = !advancedPages.checked;
     updateSettings({ advancedPages: advancedPages.checked });
@@ -398,6 +501,53 @@ if (app) {
     }
     exportStatus.classList.add("status-visible");
   };
+
+  const confirmWarning = (message: string): Promise<boolean> =>
+    new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "modal-overlay";
+      overlay.innerHTML = `
+        <div class="modal">
+          <h3>Export warning</h3>
+          <p>${message}</p>
+          <label class="modal-checkbox">
+            <input id="warn-disable" type="checkbox" />
+            Do not show again
+          </label>
+          <div class="modal-actions">
+            <button id="warn-cancel" type="button">Cancel</button>
+            <button id="warn-confirm" type="button">Continue</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      const checkbox = overlay.querySelector<HTMLInputElement>("#warn-disable");
+      const cancel = overlay.querySelector<HTMLButtonElement>("#warn-cancel");
+      const confirm = overlay.querySelector<HTMLButtonElement>("#warn-confirm");
+
+      if (!checkbox || !cancel || !confirm) {
+        overlay.remove();
+        resolve(false);
+        return;
+      }
+
+      const close = (value: boolean) => {
+        if (checkbox.checked) {
+          updateSettings({ warnOnOfflineFont: false });
+        }
+        overlay.remove();
+        resolve(value);
+      };
+
+      cancel.addEventListener("click", () => close(false));
+      confirm.addEventListener("click", () => close(true));
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) {
+          close(false);
+        }
+      });
+    });
 
   const handleImageFiles = async (files: FileList | File[]) => {
     if (!files.length) {
@@ -516,6 +666,15 @@ if (app) {
     if (!pageShell) {
       throw new Error("Page shell missing.");
     }
+    const fontStatusValue = fontStatus.dataset.status;
+    if (fontStatusValue === "not_cached" && settings.warnOnOfflineFont) {
+      const proceed = await confirmWarning(
+        "Selected font may not be cached for offline PNG export."
+      );
+      if (!proceed) {
+        return;
+      }
+    }
     exportPng.disabled = true;
     setExportStatus("Preparing export...");
     try {
@@ -555,6 +714,15 @@ if (app) {
     if (!pageShell) {
       throw new Error("Page shell missing.");
     }
+    const fontStatusValue = fontStatus.dataset.status;
+    if (fontStatusValue === "not_cached" && settings.warnOnOfflineFont) {
+      const proceed = await confirmWarning(
+        "Selected font may not be cached for offline PNG export."
+      );
+      if (!proceed) {
+        return;
+      }
+    }
     exportFirstPage.disabled = true;
     setExportStatus("Rendering first page...");
     try {
@@ -584,6 +752,15 @@ if (app) {
     const pageShell = app.querySelector<HTMLElement>(".page-shell");
     if (!pageShell) {
       throw new Error("Page shell missing.");
+    }
+    const fontStatusValue = fontStatus.dataset.status;
+    if (fontStatusValue === "not_cached" && settings.warnOnOfflineFont) {
+      const proceed = await confirmWarning(
+        "Selected font may not be cached for offline PDF export."
+      );
+      if (!proceed) {
+        return;
+      }
     }
     exportPdfButton.disabled = true;
     setExportStatus("Preparing PDF...");
@@ -624,4 +801,102 @@ if (app) {
 
   (window as Window & { msoRasterizePages?: typeof runRasterize }).msoRasterizePages =
     runRasterize;
+
+  const buildImportDialog = () => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal">
+        <h3>Import from Google Fonts</h3>
+        <p>Enter a family name or a Google Fonts specimen URL.</p>
+        <input id="font-import-input" type="text" placeholder="Montserrat" />
+        <div class="modal-actions">
+          <button id="font-import-cancel" type="button">Cancel</button>
+          <button id="font-import-confirm" type="button">Import</button>
+        </div>
+        <div id="font-import-status" class="status" role="status" aria-live="polite"></div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const input = overlay.querySelector<HTMLInputElement>("#font-import-input");
+    const cancel = overlay.querySelector<HTMLButtonElement>(
+      "#font-import-cancel"
+    );
+    const confirm = overlay.querySelector<HTMLButtonElement>(
+      "#font-import-confirm"
+    );
+    const status = overlay.querySelector<HTMLDivElement>("#font-import-status");
+
+    if (!input || !cancel || !confirm || !status) {
+      overlay.remove();
+      return null;
+    }
+
+    const setImportStatus = (message: string) => {
+      status.textContent = message;
+      if (!message) {
+        status.classList.remove("status-visible");
+        return;
+      }
+      status.classList.add("status-visible");
+    };
+
+    cancel.addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) {
+        overlay.remove();
+      }
+    });
+
+    const handleImport = async () => {
+      const normalized = normalizeFontInput(input.value);
+      if ("error" in normalized) {
+        setImportStatus(normalized.error);
+        return;
+      }
+      setImportStatus("Looking up font...");
+      confirm.disabled = true;
+      try {
+        const variants = await resolveFontVariants(normalized.familyName);
+        storeFontVariants(normalized.familyName, variants);
+        setImportStatus("Downloading font files...");
+        await loadFontFamily(normalized.familyName, variants);
+        updateSettings({ fontFamily: normalized.familyName });
+        const statusValue = await getFontCacheStatus(variants);
+        updateFontStatusLabel(statusValue);
+        if (
+          !Array.from(fontSelect.options).some(
+            (option) => option.value === normalized.familyName
+          )
+        ) {
+          const option = document.createElement("option");
+          option.value = normalized.familyName;
+          option.textContent = normalized.familyName;
+          fontSelect.insertBefore(
+            option,
+            fontSelect.querySelector('option[value="__import__"]')
+          );
+        }
+        fontSelect.value = normalized.familyName;
+        setImportStatus("Font imported.");
+        window.setTimeout(() => overlay.remove(), 600);
+      } catch (error) {
+        setImportStatus(
+          error instanceof Error ? error.message : "Could not look up that font. Try again."
+        );
+      } finally {
+        confirm.disabled = false;
+      }
+    };
+
+    confirm.addEventListener("click", () => {
+      void handleImport();
+    });
+
+    return { overlay, input };
+  };
+
+  updateFontStatusLabel("not_cached");
+  void ensureFontLoaded(settings.fontFamily);
 }
