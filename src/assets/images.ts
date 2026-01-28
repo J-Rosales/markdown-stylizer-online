@@ -96,6 +96,53 @@ export const resolveAppImages = async (
   );
 };
 
+const parseTitleOptions = (title: string) => {
+  const options: Record<string, string> = {};
+  title
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .forEach((part) => {
+      const [key, value] = part.split("=");
+      if (key && value) {
+        options[key.toLowerCase()] = value;
+      }
+    });
+  return options;
+};
+
+export const applyImageOptions = (container: HTMLElement): void => {
+  const images = Array.from(container.querySelectorAll("img"));
+  images.forEach((img) => {
+    const title = img.getAttribute("title") ?? "";
+    if (!title) {
+      return;
+    }
+    const options = parseTitleOptions(title);
+    img.classList.remove("align-left", "align-right", "align-center");
+    img.style.width = "";
+    img.style.float = "";
+    img.style.marginLeft = "";
+    img.style.marginRight = "";
+    if (options.width) {
+      const widthValue = options.width.endsWith("%")
+        ? options.width
+        : `${Number(options.width)}px`;
+      if (!Number.isNaN(Number(options.width)) || options.width.endsWith("%")) {
+        img.style.width = widthValue;
+      }
+    }
+    const align = options.align?.toLowerCase();
+    if (align === "left") {
+      img.classList.add("align-left");
+    } else if (align === "right") {
+      img.classList.add("align-right");
+    } else if (align === "center") {
+      img.classList.add("align-center");
+    }
+  });
+};
+
 export const insertAtCursor = (
   textarea: HTMLTextAreaElement,
   text: string

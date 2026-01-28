@@ -2,6 +2,7 @@ import DOMPurify from "dompurify";
 import MarkdownIt from "markdown-it";
 import {
   MAX_IMAGE_BYTES,
+  applyImageOptions,
   insertAtCursor,
   resolveAppImages,
   storeImageFile,
@@ -490,6 +491,7 @@ if (app) {
       ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|appimg):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
     });
     void resolveAppImages(preview);
+    applyImageOptions(preview);
   };
 
   const renderDebounced = debounce(render, 120);

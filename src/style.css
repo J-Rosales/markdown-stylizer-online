@@ -389,6 +389,21 @@ body {
   height: auto;
 }
 
+.preview-content img.align-left {
+  float: left;
+  margin: 0 12px 12px 0;
+}
+
+.preview-content img.align-right {
+  float: right;
+  margin: 0 0 12px 12px;
+}
+
+.preview-content img.align-center {
+  display: block;
+  margin: 0 auto 12px;
+}
+
 .preview-content img.image-missing {
   outline: 2px dashed #f97316;
   padding: 4px;
