@@ -92,7 +92,8 @@ body {
 }
 
 .control select,
-.control input[type="range"] {
+.control input[type="range"],
+.control input[type="number"] {
   width: 100%;
 }
 
