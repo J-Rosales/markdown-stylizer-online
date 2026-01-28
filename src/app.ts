@@ -233,6 +233,23 @@ if (app) {
             <select id="font-select"></select>
           </label>
           <div class="font-status" id="font-status">Font status: unknown</div>
+          <label class="control control-toggle">
+            <span>Show guides</span>
+            <input id="show-guides" type="checkbox" />
+            <span class="control-hint">Margin + padding</span>
+          </label>
+          <div class="control-group">
+            <span class="control-label">Margins</span>
+            <button class="preset-button" type="button" data-margin="12">Compact</button>
+            <button class="preset-button" type="button" data-margin="20">Default</button>
+            <button class="preset-button" type="button" data-margin="28">Spacious</button>
+          </div>
+          <div class="control-group">
+            <span class="control-label">Padding</span>
+            <button class="preset-button" type="button" data-padding="12">Compact</button>
+            <button class="preset-button" type="button" data-padding="24">Default</button>
+            <button class="preset-button" type="button" data-padding="36">Spacious</button>
+          </div>
           </div>
           <div class="controls-section">
             <div class="controls-section-title">Export</div>
@@ -307,6 +324,13 @@ if (app) {
   const allowLarge = app.querySelector<HTMLInputElement>("#allow-large");
   const fontSelect = app.querySelector<HTMLSelectElement>("#font-select");
   const fontStatus = app.querySelector<HTMLDivElement>("#font-status");
+  const showGuides = app.querySelector<HTMLInputElement>("#show-guides");
+  const marginPresets = app.querySelectorAll<HTMLButtonElement>(
+    "[data-margin]"
+  );
+  const paddingPresets = app.querySelectorAll<HTMLButtonElement>(
+    "[data-padding]"
+  );
   const advancedPages = app.querySelector<HTMLInputElement>("#advanced-pages");
   const maxPages = app.querySelector<HTMLInputElement>("#max-pages");
   const pdfMethod = app.querySelector<HTMLSelectElement>("#pdf-method");
@@ -341,6 +365,7 @@ if (app) {
     !allowLarge ||
     !fontSelect ||
     !fontStatus ||
+    !showGuides ||
     !advancedPages ||
     !maxPages ||
     !pdfMethod ||
@@ -405,6 +430,13 @@ if (app) {
 
   populateFontOptions();
   fontSelect.value = settings.fontFamily;
+
+  const setGuideVisibility = (enabled: boolean) => {
+    const pageShell = app.querySelector<HTMLElement>(".page-shell");
+    const previewScroll = app.querySelector<HTMLElement>(".preview-scroll");
+    pageShell?.classList.toggle("show-guides", enabled);
+    previewScroll?.classList.toggle("show-guides", enabled);
+  };
 
   const ensureFontLoaded = async (familyName: string) => {
     if (familyName === "System") {
@@ -495,6 +527,28 @@ if (app) {
     }
     updateSettings({ fontFamily: fontSelect.value });
     await ensureFontLoaded(fontSelect.value);
+  });
+  showGuides.addEventListener("change", () => {
+    setGuideVisibility(showGuides.checked);
+  });
+  marginPresets.forEach((button) => {
+    button.addEventListener("click", () => {
+      const value = button.dataset.margin;
+      if (value) {
+        document.documentElement.style.setProperty("--page-margin", `${value}mm`);
+      }
+    });
+  });
+  paddingPresets.forEach((button) => {
+    button.addEventListener("click", () => {
+      const value = button.dataset.padding;
+      if (value) {
+        document.documentElement.style.setProperty(
+          "--preview-container-padding",
+          `${value}px`
+        );
+      }
+    });
   });
   advancedPages.addEventListener("change", () => {
     maxPages.disabled = !advancedPages.checked;
@@ -934,6 +988,7 @@ if (app) {
 
   updateFontStatusLabel("not_cached");
   void ensureFontLoaded(settings.fontFamily);
+  setGuideVisibility(false);
 
   const updateOfflineStatus = async () => {
     const isOnline = navigator.onLine;
