@@ -1,8 +1,13 @@
-const APP_CACHE = "mso-app-v1";
+const APP_CACHE = "mso-app-v2";
 const FONT_CACHE = "mso-fonts-v1";
 const METADATA_URL = "https://fonts.google.com/metadata/fonts";
 
-const APP_SHELL = ["/", "/index.html", "/manifest.webmanifest", "/favicon.svg"];
+const getBasePath = () => {
+  const scope = new URL(self.registration.scope);
+  return scope.pathname.endsWith("/") ? scope.pathname : `${scope.pathname}/`;
+};
+
+const withBase = (path) => `${getBasePath()}${path}`;
 
 const allowedNameRegex = /^[a-z0-9 '\-]{1,80}$/i;
 
@@ -74,20 +79,41 @@ const resolveVariants = async (familyName) => {
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(APP_CACHE)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .catch(() => {})
+    (async () => {
+      const cache = await caches.open(APP_CACHE);
+      const base = getBasePath();
+      await cache.addAll([
+        base,
+        withBase("index.html"),
+        withBase("manifest.webmanifest"),
+        withBase("favicon.svg"),
+      ]);
+      await self.skipWaiting();
+    })().catch(() => self.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => key !== APP_CACHE && key !== FONT_CACHE)
+          .map((key) => caches.delete(key))
+      );
+      await self.clients.claim();
+    })()
+  );
 });
 
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  if (request.method !== "GET") {
+    return;
+  }
 
   if (url.pathname === "/api/google-fonts/resolve") {
     event.respondWith(
@@ -114,6 +140,23 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  if (request.mode === "navigate" && url.origin === self.location.origin) {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(request);
+          const cache = await caches.open(APP_CACHE);
+          cache.put(request, response.clone());
+          return response;
+        } catch {
+          const cached = await caches.match(withBase("index.html"));
+          return cached || new Response("Offline", { status: 503 });
+        }
+      })()
+    );
+    return;
+  }
+
   if (url.origin === "https://fonts.gstatic.com") {
     event.respondWith(
       caches.open(FONT_CACHE).then(async (cache) => {
@@ -133,5 +176,25 @@ self.addEventListener("fetch", (event) => {
       })
     );
     return;
+  }
+
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.open(APP_CACHE).then(async (cache) => {
+        const cached = await cache.match(request);
+        if (cached) {
+          return cached;
+        }
+        try {
+          const response = await fetch(request);
+          if (response.ok) {
+            cache.put(request, response.clone());
+          }
+          return response;
+        } catch {
+          return cached || new Response("", { status: 504 });
+        }
+      })
+    );
   }
 });

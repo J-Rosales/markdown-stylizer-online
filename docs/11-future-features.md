@@ -10,5 +10,6 @@ Notes for potential features after the established milestones.
 - PDF export via pdf-lib (alternative rendering pipeline)
 - Check filename text field vulnerabilities
 - Add reset warning flags button in a settings menu
+- Add footer with common text editor information (character count, etc). offline status goes here.
 - Standardized buttons for margin and padding
 - Per-markdown-element styling
