@@ -1,0 +1,9 @@
+{
+  "name": "Markdown Stylizer Online",
+  "short_name": "Markdown Stylizer",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f6f7f9",
+  "theme_color": "#1f2937",
+  "icons": []
+}
