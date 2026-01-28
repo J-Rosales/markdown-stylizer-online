@@ -283,6 +283,9 @@ if (app) {
           <button id="export-pdf" class="action-button" type="button">
             Export PDF
           </button>
+          <button id="rasterize-preview" class="action-button" type="button">
+            Rasterize preview
+          </button>
           <div id="export-status" class="status" role="status" aria-live="polite"></div>
           </div>
         </div>
@@ -340,6 +343,8 @@ if (app) {
     "#export-first-page"
   );
   const exportPdfButton = app.querySelector<HTMLButtonElement>("#export-pdf");
+  const rasterizePreview =
+    app.querySelector<HTMLButtonElement>("#rasterize-preview");
   const exportStatus = app.querySelector<HTMLDivElement>("#export-status");
   const imageStatus = app.querySelector<HTMLDivElement>("#image-status");
   const offlineStatus = app.querySelector<HTMLDivElement>("#offline-status");
@@ -373,6 +378,7 @@ if (app) {
     !exportPng ||
     !exportFirstPage ||
     !exportPdfButton ||
+    !rasterizePreview ||
     !exportStatus ||
     !imageStatus ||
     !offlineStatus ||
@@ -885,6 +891,37 @@ if (app) {
       );
     } finally {
       exportPdfButton.disabled = false;
+    }
+  });
+
+  rasterizePreview.addEventListener("click", async () => {
+    const pageShell = app.querySelector<HTMLElement>(".page-shell");
+    if (!pageShell) {
+      throw new Error("Page shell missing.");
+    }
+    rasterizePreview.disabled = true;
+    setExportStatus("Rasterizing preview...");
+    try {
+      const result = await rasterizePages({
+        previewContent: preview,
+        pageShell,
+        maxPages: getEffectiveMaxPages(),
+        scale: 2,
+      });
+      if (result.pages[0]) {
+        window.open(result.pages[0], "_blank", "noopener,noreferrer");
+      }
+      setExportStatus(
+        `Rasterized ${result.pages.length} page${
+          result.pages.length > 1 ? "s" : ""
+        }.`
+      );
+    } catch (error) {
+      setExportStatus(
+        error instanceof Error ? error.message : "Rasterize failed."
+      );
+    } finally {
+      rasterizePreview.disabled = false;
     }
   });
 
