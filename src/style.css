@@ -111,7 +111,8 @@ body {
 
 .control select,
 .control input[type="range"],
-.control input[type="number"] {
+.control input[type="number"],
+.control input[type="text"] {
   width: 100%;
 }
 

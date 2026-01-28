@@ -8,6 +8,7 @@ import {
 } from "./assets/images";
 import { downloadBlob } from "./export/download";
 import { exportPngZip } from "./export/exportPngZip";
+import { exportPdf } from "./export/exportPdf";
 import { rasterizePages } from "./export/rasterize";
 import "./style.css";
 
@@ -30,6 +31,7 @@ type AppSettings = {
   allowLargeImages: boolean;
   maxPages: number;
   advancedPages: boolean;
+  pdfMethod: "html2pdf";
 };
 
 const themes: Record<ThemeId, Record<string, string>> = {
@@ -84,6 +86,7 @@ const defaultSettings: AppSettings = {
   allowLargeImages: false,
   maxPages: 10,
   advancedPages: false,
+  pdfMethod: "html2pdf",
 };
 
 const settingsKey = "mso-settings";
@@ -213,11 +216,26 @@ if (app) {
             Max pages
             <input id="max-pages" type="number" min="1" max="50" step="1" />
           </label>
+          <label class="control">
+            PDF method
+            <select id="pdf-method">
+              <option value="html2pdf">html2pdf.js</option>
+              <option value="jspdf" disabled>jsPDF (future)</option>
+              <option value="pdflib" disabled>pdf-lib (future)</option>
+            </select>
+          </label>
+          <label class="control">
+            File name
+            <input id="file-name" type="text" placeholder="document" />
+          </label>
           <button id="export-png" class="action-button" type="button">
             Export PNG ZIP
           </button>
           <button id="export-first-page" class="action-button" type="button">
             Download first page PNG
+          </button>
+          <button id="export-pdf" class="action-button" type="button">
+            Export PDF
           </button>
           <div id="export-status" class="status" role="status" aria-live="polite"></div>
           </div>
@@ -247,10 +265,13 @@ if (app) {
   const allowLarge = app.querySelector<HTMLInputElement>("#allow-large");
   const advancedPages = app.querySelector<HTMLInputElement>("#advanced-pages");
   const maxPages = app.querySelector<HTMLInputElement>("#max-pages");
+  const pdfMethod = app.querySelector<HTMLSelectElement>("#pdf-method");
+  const fileNameInput = app.querySelector<HTMLInputElement>("#file-name");
   const exportPng = app.querySelector<HTMLButtonElement>("#export-png");
   const exportFirstPage = app.querySelector<HTMLButtonElement>(
     "#export-first-page"
   );
+  const exportPdfButton = app.querySelector<HTMLButtonElement>("#export-pdf");
   const exportStatus = app.querySelector<HTMLDivElement>("#export-status");
   const imageStatus = app.querySelector<HTMLDivElement>("#image-status");
   const fontSizeValue = app.querySelector<HTMLSpanElement>("#font-size-value");
@@ -271,8 +292,11 @@ if (app) {
     !allowLarge ||
     !advancedPages ||
     !maxPages ||
+    !pdfMethod ||
+    !fileNameInput ||
     !exportPng ||
     !exportFirstPage ||
+    !exportPdfButton ||
     !exportStatus ||
     !imageStatus ||
     !fontSizeValue ||
@@ -295,6 +319,7 @@ if (app) {
   advancedPages.checked = settings.advancedPages;
   maxPages.value = settings.maxPages.toString();
   maxPages.disabled = !settings.advancedPages;
+  pdfMethod.value = settings.pdfMethod;
 
   const refreshLabels = () => {
     fontSizeValue.textContent = `${settings.fontSize}px`;
@@ -351,6 +376,9 @@ if (app) {
   });
   maxPages.addEventListener("change", () => {
     updateSettings({ maxPages: Math.max(1, Number(maxPages.value)) });
+  });
+  pdfMethod.addEventListener("change", () => {
+    updateSettings({ pdfMethod: pdfMethod.value as AppSettings["pdfMethod"] });
   });
 
   const setStatus = (message: string) => {
@@ -452,6 +480,37 @@ if (app) {
     return response.blob();
   };
 
+  const sanitizeFileName = (value: string): string => {
+    const cleaned = value
+      .trim()
+      .replace(/[^\w\s-]+/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .toLowerCase();
+    return cleaned.slice(0, 60);
+  };
+
+  const fallbackFromMarkdown = (markdown: string): string | null => {
+    const match = markdown.match(/^#\s+(.+)$/m);
+    if (!match) {
+      return null;
+    }
+    return sanitizeFileName(match[1]);
+  };
+
+  const getBaseFileName = (): string => {
+    const inputValue = sanitizeFileName(fileNameInput.value);
+    if (inputValue) {
+      return inputValue;
+    }
+    const headerValue = fallbackFromMarkdown(editor.value);
+    if (headerValue) {
+      return headerValue;
+    }
+    return `document-${Date.now().toString(36)}`;
+  };
+
   exportPng.addEventListener("click", async () => {
     const pageShell = app.querySelector<HTMLElement>(".page-shell");
     if (!pageShell) {
@@ -465,6 +524,7 @@ if (app) {
         pageShell,
         maxPages: getEffectiveMaxPages(),
         scale: 2,
+        fileName: `${getBaseFileName()}.zip`,
         onProgress: ({ step, current, total }) => {
           if (step === "zip" && current && total) {
             setExportStatus(`Zipping page ${current} of ${total}...`);
@@ -509,7 +569,7 @@ if (app) {
         throw new Error("No page output generated.");
       }
       const blob = await dataUrlToBlob(first);
-      downloadBlob(blob, "page-01.png");
+      downloadBlob(blob, `${getBaseFileName()}-page-01.png`);
       setExportStatus("Download started.");
     } catch (error) {
       setExportStatus(
@@ -517,6 +577,48 @@ if (app) {
       );
     } finally {
       exportFirstPage.disabled = false;
+    }
+  });
+
+  exportPdfButton.addEventListener("click", async () => {
+    const pageShell = app.querySelector<HTMLElement>(".page-shell");
+    if (!pageShell) {
+      throw new Error("Page shell missing.");
+    }
+    exportPdfButton.disabled = true;
+    setExportStatus("Preparing PDF...");
+    try {
+      await exportPdf({
+        previewContent: preview,
+        pageShell,
+        maxPages: getEffectiveMaxPages(),
+        fileName: `${getBaseFileName()}.pdf`,
+        onProgress: ({ step, pageCount, clamped }) => {
+          if (step === "measure" && pageCount) {
+            if (clamped) {
+              setExportStatus(
+                `Limiting export to ${pageCount} page${pageCount > 1 ? "s" : ""}...`
+              );
+              return;
+            }
+          }
+          if (step === "render") {
+            setExportStatus("Rendering PDF...");
+            return;
+          }
+          if (step === "done") {
+            setExportStatus("Download started.");
+            return;
+          }
+          setExportStatus("Preparing PDF...");
+        },
+      });
+    } catch (error) {
+      setExportStatus(
+        error instanceof Error ? error.message : "Export failed."
+      );
+    } finally {
+      exportPdfButton.disabled = false;
     }
   });
 

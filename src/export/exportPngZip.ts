@@ -13,6 +13,7 @@ export type ExportPngZipOptions = {
   pageShell: HTMLElement;
   maxPages: number;
   scale?: number;
+  fileName?: string;
   onProgress?: (progress: ExportProgress) => void;
 };
 
@@ -27,7 +28,7 @@ const toFileName = (index: number) =>
 export const exportPngZip = async (
   options: ExportPngZipOptions
 ): Promise<RasterizeResult> => {
-  const { onProgress } = options;
+  const { onProgress, fileName } = options;
   onProgress?.({ step: "rasterize" });
   const result = await rasterizePages(options);
 
@@ -42,7 +43,7 @@ export const exportPngZip = async (
 
   onProgress?.({ step: "generate" });
   const zipBlob = await zip.generateAsync({ type: "blob" });
-  downloadBlob(zipBlob, "markdown-pages.zip");
+  downloadBlob(zipBlob, fileName ?? "markdown-pages.zip");
   onProgress?.({ step: "done" });
 
   return result;

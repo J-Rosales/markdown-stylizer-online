@@ -7,5 +7,7 @@ Notes for potential features after the established milestones.
 - Image resizing and alignment
 - Add a visible rasterizer button (vs console-only hook)
 - Toggle margin and padding visibility in view container
+- PDF export via pdf-lib (alternative rendering pipeline)
+- Check filename text field vulnerabilities
 - Standardized buttons for margin and padding
 - Per-markdown-element styling
