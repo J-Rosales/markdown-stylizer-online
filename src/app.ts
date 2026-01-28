@@ -10,6 +10,109 @@ const md = new MarkdownIt({
   breaks: true,
 });
 
+type ThemeId = "light" | "dark" | "paper" | "terminal";
+
+type AppSettings = {
+  theme: ThemeId;
+  fontSize: number;
+  lineHeight: number;
+  maxWidth: number;
+  paragraphSpacing: number;
+};
+
+const themes: Record<ThemeId, Record<string, string>> = {
+  light: {
+    "--app-bg": "#f6f7f9",
+    "--panel-bg": "#ffffff",
+    "--panel-border": "#e5e7eb",
+    "--text-primary": "#1f2937",
+    "--text-muted": "#4b5563",
+    "--shadow-color": "rgba(15, 23, 42, 0.08)",
+    "--code-bg": "#0f172a",
+    "--code-text": "#e2e8f0",
+  },
+  dark: {
+    "--app-bg": "#0f172a",
+    "--panel-bg": "#111827",
+    "--panel-border": "#1f2937",
+    "--text-primary": "#f9fafb",
+    "--text-muted": "#9ca3af",
+    "--shadow-color": "rgba(0, 0, 0, 0.35)",
+    "--code-bg": "#111827",
+    "--code-text": "#f9fafb",
+  },
+  paper: {
+    "--app-bg": "#f3f0ea",
+    "--panel-bg": "#fffdf8",
+    "--panel-border": "#e7e2d9",
+    "--text-primary": "#3f3a30",
+    "--text-muted": "#6b6459",
+    "--shadow-color": "rgba(63, 58, 48, 0.12)",
+    "--code-bg": "#3f3a30",
+    "--code-text": "#f9f6ef",
+  },
+  terminal: {
+    "--app-bg": "#0b0f0c",
+    "--panel-bg": "#0f1412",
+    "--panel-border": "#1f2a25",
+    "--text-primary": "#c7f9cc",
+    "--text-muted": "#84cc9b",
+    "--shadow-color": "rgba(0, 0, 0, 0.4)",
+    "--code-bg": "#0b0f0c",
+    "--code-text": "#c7f9cc",
+  },
+};
+
+const defaultSettings: AppSettings = {
+  theme: "light",
+  fontSize: 15,
+  lineHeight: 1.6,
+  maxWidth: 170,
+  paragraphSpacing: 14,
+};
+
+const settingsKey = "mso-settings";
+
+const loadSettings = (): AppSettings => {
+  const raw = localStorage.getItem(settingsKey);
+  if (!raw) {
+    return defaultSettings;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    return { ...defaultSettings, ...parsed };
+  } catch {
+    return defaultSettings;
+  }
+};
+
+const saveSettings = (settings: AppSettings) => {
+  localStorage.setItem(settingsKey, JSON.stringify(settings));
+};
+
+const applySettings = (settings: AppSettings) => {
+  const themeVars = themes[settings.theme];
+  Object.entries(themeVars).forEach(([key, value]) => {
+    document.documentElement.style.setProperty(key, value);
+  });
+  document.documentElement.style.setProperty(
+    "--preview-font-size",
+    `${settings.fontSize}px`
+  );
+  document.documentElement.style.setProperty(
+    "--preview-line-height",
+    settings.lineHeight.toString()
+  );
+  document.documentElement.style.setProperty(
+    "--preview-max-width",
+    `${settings.maxWidth}mm`
+  );
+  document.documentElement.style.setProperty(
+    "--preview-paragraph-spacing",
+    `${settings.paragraphSpacing}px`
+  );
+};
+
 const starterText = `# Markdown Stylizer Online
 
 Type Markdown on the left.
@@ -37,11 +140,44 @@ if (app) {
   app.innerHTML = `
     <header class="app-header">
       <h1>Markdown Stylizer Online</h1>
-      <p>Milestone 1: editor + preview rendering</p>
+      <p>Milestone 3: themes + typography controls</p>
     </header>
     <main class="workspace">
       <section class="pane">
-        <label class="pane-title" for="editor">Markdown</label>
+        <div class="pane-title-row">
+          <label class="pane-title" for="editor">Markdown</label>
+        </div>
+        <div class="controls">
+          <label class="control">
+            Theme
+            <select id="theme-select">
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="paper">Paper</option>
+              <option value="terminal">Terminal</option>
+            </select>
+          </label>
+          <label class="control">
+            Font size
+            <input id="font-size" type="range" min="12" max="20" step="1" />
+            <span class="control-value" id="font-size-value"></span>
+          </label>
+          <label class="control">
+            Line height
+            <input id="line-height" type="range" min="1.3" max="2.0" step="0.05" />
+            <span class="control-value" id="line-height-value"></span>
+          </label>
+          <label class="control">
+            Max width (mm)
+            <input id="max-width" type="range" min="120" max="210" step="5" />
+            <span class="control-value" id="max-width-value"></span>
+          </label>
+          <label class="control">
+            Paragraph spacing
+            <input id="para-spacing" type="range" min="6" max="24" step="2" />
+            <span class="control-value" id="para-spacing-value"></span>
+          </label>
+        </div>
         <textarea id="editor" spellcheck="false"></textarea>
       </section>
       <section class="pane">
@@ -58,10 +194,51 @@ if (app) {
 
   const editor = app.querySelector<HTMLTextAreaElement>("#editor");
   const preview = app.querySelector<HTMLDivElement>("#preview");
+  const themeSelect = app.querySelector<HTMLSelectElement>("#theme-select");
+  const fontSize = app.querySelector<HTMLInputElement>("#font-size");
+  const lineHeight = app.querySelector<HTMLInputElement>("#line-height");
+  const maxWidth = app.querySelector<HTMLInputElement>("#max-width");
+  const paraSpacing = app.querySelector<HTMLInputElement>("#para-spacing");
+  const fontSizeValue = app.querySelector<HTMLSpanElement>("#font-size-value");
+  const lineHeightValue =
+    app.querySelector<HTMLSpanElement>("#line-height-value");
+  const maxWidthValue = app.querySelector<HTMLSpanElement>("#max-width-value");
+  const paraSpacingValue =
+    app.querySelector<HTMLSpanElement>("#para-spacing-value");
 
-  if (!editor || !preview) {
+  if (
+    !editor ||
+    !preview ||
+    !themeSelect ||
+    !fontSize ||
+    !lineHeight ||
+    !maxWidth ||
+    !paraSpacing ||
+    !fontSizeValue ||
+    !lineHeightValue ||
+    !maxWidthValue ||
+    !paraSpacingValue
+  ) {
     throw new Error("Editor or preview element missing.");
   }
+
+  const settings = loadSettings();
+  applySettings(settings);
+
+  themeSelect.value = settings.theme;
+  fontSize.value = settings.fontSize.toString();
+  lineHeight.value = settings.lineHeight.toString();
+  maxWidth.value = settings.maxWidth.toString();
+  paraSpacing.value = settings.paragraphSpacing.toString();
+
+  const refreshLabels = () => {
+    fontSizeValue.textContent = `${settings.fontSize}px`;
+    lineHeightValue.textContent = settings.lineHeight.toFixed(2);
+    maxWidthValue.textContent = `${settings.maxWidth}mm`;
+    paraSpacingValue.textContent = `${settings.paragraphSpacing}px`;
+  };
+
+  refreshLabels();
 
   const render = () => {
     const rawHtml = md.render(editor.value);
@@ -70,8 +247,31 @@ if (app) {
 
   const renderDebounced = debounce(render, 120);
 
+  const updateSettings = (next: Partial<AppSettings>) => {
+    Object.assign(settings, next);
+    applySettings(settings);
+    saveSettings(settings);
+    refreshLabels();
+  };
+
   editor.value = starterText;
   render();
 
   editor.addEventListener("input", renderDebounced);
+
+  themeSelect.addEventListener("change", () => {
+    updateSettings({ theme: themeSelect.value as ThemeId });
+  });
+  fontSize.addEventListener("input", () => {
+    updateSettings({ fontSize: Number(fontSize.value) });
+  });
+  lineHeight.addEventListener("input", () => {
+    updateSettings({ lineHeight: Number(lineHeight.value) });
+  });
+  maxWidth.addEventListener("input", () => {
+    updateSettings({ maxWidth: Number(maxWidth.value) });
+  });
+  paraSpacing.addEventListener("input", () => {
+    updateSettings({ paragraphSpacing: Number(paraSpacing.value) });
+  });
 }
