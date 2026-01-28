@@ -6,6 +6,8 @@ import {
   resolveAppImages,
   storeImageFile,
 } from "./assets/images";
+import { downloadBlob } from "./export/download";
+import { exportPngZip } from "./export/exportPngZip";
 import { rasterizePages } from "./export/rasterize";
 import "./style.css";
 
@@ -161,6 +163,8 @@ if (app) {
           <label class="pane-title" for="editor">Markdown</label>
         </div>
         <div class="controls">
+          <div class="controls-section">
+            <div class="controls-section-title">Appearance</div>
           <label class="control">
             Theme
             <select id="theme-select">
@@ -197,6 +201,9 @@ if (app) {
               Default limit: ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB
             </span>
           </label>
+          </div>
+          <div class="controls-section">
+            <div class="controls-section-title">Export</div>
           <label class="control control-toggle">
             <span>Advanced pages</span>
             <input id="advanced-pages" type="checkbox" />
@@ -206,6 +213,14 @@ if (app) {
             Max pages
             <input id="max-pages" type="number" min="1" max="50" step="1" />
           </label>
+          <button id="export-png" class="action-button" type="button">
+            Export PNG ZIP
+          </button>
+          <button id="export-first-page" class="action-button" type="button">
+            Download first page PNG
+          </button>
+          <div id="export-status" class="status" role="status" aria-live="polite"></div>
+          </div>
         </div>
         <div id="image-status" class="status" role="status" aria-live="polite"></div>
         <textarea id="editor" spellcheck="false"></textarea>
@@ -232,6 +247,11 @@ if (app) {
   const allowLarge = app.querySelector<HTMLInputElement>("#allow-large");
   const advancedPages = app.querySelector<HTMLInputElement>("#advanced-pages");
   const maxPages = app.querySelector<HTMLInputElement>("#max-pages");
+  const exportPng = app.querySelector<HTMLButtonElement>("#export-png");
+  const exportFirstPage = app.querySelector<HTMLButtonElement>(
+    "#export-first-page"
+  );
+  const exportStatus = app.querySelector<HTMLDivElement>("#export-status");
   const imageStatus = app.querySelector<HTMLDivElement>("#image-status");
   const fontSizeValue = app.querySelector<HTMLSpanElement>("#font-size-value");
   const lineHeightValue =
@@ -251,6 +271,9 @@ if (app) {
     !allowLarge ||
     !advancedPages ||
     !maxPages ||
+    !exportPng ||
+    !exportFirstPage ||
+    !exportStatus ||
     !imageStatus ||
     !fontSizeValue ||
     !lineHeightValue ||
@@ -339,6 +362,15 @@ if (app) {
     imageStatus.classList.add("status-visible");
   };
 
+  const setExportStatus = (message: string) => {
+    exportStatus.textContent = message;
+    if (!message) {
+      exportStatus.classList.remove("status-visible");
+      return;
+    }
+    exportStatus.classList.add("status-visible");
+  };
+
   const handleImageFiles = async (files: FileList | File[]) => {
     if (!files.length) {
       return;
@@ -414,6 +446,79 @@ if (app) {
       scale: 2,
     });
   };
+
+  const dataUrlToBlob = async (dataUrl: string): Promise<Blob> => {
+    const response = await fetch(dataUrl);
+    return response.blob();
+  };
+
+  exportPng.addEventListener("click", async () => {
+    const pageShell = app.querySelector<HTMLElement>(".page-shell");
+    if (!pageShell) {
+      throw new Error("Page shell missing.");
+    }
+    exportPng.disabled = true;
+    setExportStatus("Preparing export...");
+    try {
+      await exportPngZip({
+        previewContent: preview,
+        pageShell,
+        maxPages: getEffectiveMaxPages(),
+        scale: 2,
+        onProgress: ({ step, current, total }) => {
+          if (step === "zip" && current && total) {
+            setExportStatus(`Zipping page ${current} of ${total}...`);
+            return;
+          }
+          if (step === "generate") {
+            setExportStatus("Creating ZIP...");
+            return;
+          }
+          if (step === "done") {
+            setExportStatus("Download started.");
+            return;
+          }
+          setExportStatus("Rasterizing pages...");
+        },
+      });
+    } catch (error) {
+      setExportStatus(
+        error instanceof Error ? error.message : "Export failed."
+      );
+    } finally {
+      exportPng.disabled = false;
+    }
+  });
+
+  exportFirstPage.addEventListener("click", async () => {
+    const pageShell = app.querySelector<HTMLElement>(".page-shell");
+    if (!pageShell) {
+      throw new Error("Page shell missing.");
+    }
+    exportFirstPage.disabled = true;
+    setExportStatus("Rendering first page...");
+    try {
+      const result = await rasterizePages({
+        previewContent: preview,
+        pageShell,
+        maxPages: 1,
+        scale: 2,
+      });
+      const first = result.pages[0];
+      if (!first) {
+        throw new Error("No page output generated.");
+      }
+      const blob = await dataUrlToBlob(first);
+      downloadBlob(blob, "page-01.png");
+      setExportStatus("Download started.");
+    } catch (error) {
+      setExportStatus(
+        error instanceof Error ? error.message : "Export failed."
+      );
+    } finally {
+      exportFirstPage.disabled = false;
+    }
+  });
 
   (window as Window & { msoRasterizePages?: typeof runRasterize }).msoRasterizePages =
     runRasterize;
