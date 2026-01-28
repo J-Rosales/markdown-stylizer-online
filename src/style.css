@@ -10,10 +10,101 @@ body {
 }
 
 #app {
-  max-width: 720px;
-  margin: 64px auto;
+  min-height: 100vh;
   padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.app-header h1 {
+  margin: 0 0 4px;
+  font-size: 28px;
+}
+
+.app-header p {
+  margin: 0;
+  color: #4b5563;
+}
+
+.workspace {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.pane {
   background: #ffffff;
   border-radius: 12px;
+  padding: 20px;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pane-title {
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #111827;
+}
+
+#editor {
+  flex: 1;
+  resize: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #111827;
+}
+
+.preview {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  background: #ffffff;
+}
+
+.preview h1,
+.preview h2,
+.preview h3 {
+  margin-top: 1.2em;
+  margin-bottom: 0.6em;
+}
+
+.preview p {
+  margin: 0 0 1em;
+  line-height: 1.6;
+}
+
+.preview ul,
+.preview ol {
+  margin: 0 0 1em 1.2em;
+}
+
+.preview code {
+  font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.95em;
+}
+
+.preview pre {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px;
+  border-radius: 8px;
+  overflow: auto;
+}
+
+@media (max-width: 900px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
 }

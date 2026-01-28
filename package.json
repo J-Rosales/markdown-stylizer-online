@@ -21,8 +21,14 @@
   },
   "homepage": "https://github.com/J-Rosales/markdown-stylizer-online#readme",
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^25.0.10",
     "typescript": "^5.9.3",
     "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "dompurify": "^3.3.1",
+    "markdown-it": "^14.1.0"
   }
 }
