@@ -6,6 +6,7 @@ import {
   resolveAppImages,
   storeImageFile,
 } from "./assets/images";
+import { rasterizePages } from "./export/rasterize";
 import "./style.css";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -25,6 +26,8 @@ type AppSettings = {
   maxWidth: number;
   paragraphSpacing: number;
   allowLargeImages: boolean;
+  maxPages: number;
+  advancedPages: boolean;
 };
 
 const themes: Record<ThemeId, Record<string, string>> = {
@@ -77,6 +80,8 @@ const defaultSettings: AppSettings = {
   maxWidth: 170,
   paragraphSpacing: 14,
   allowLargeImages: false,
+  maxPages: 10,
+  advancedPages: false,
 };
 
 const settingsKey = "mso-settings";
@@ -192,6 +197,15 @@ if (app) {
               Default limit: ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB
             </span>
           </label>
+          <label class="control control-toggle">
+            <span>Advanced pages</span>
+            <input id="advanced-pages" type="checkbox" />
+            <span class="control-hint">Default limit: 10 pages</span>
+          </label>
+          <label class="control">
+            Max pages
+            <input id="max-pages" type="number" min="1" max="50" step="1" />
+          </label>
         </div>
         <div id="image-status" class="status" role="status" aria-live="polite"></div>
         <textarea id="editor" spellcheck="false"></textarea>
@@ -216,6 +230,8 @@ if (app) {
   const maxWidth = app.querySelector<HTMLInputElement>("#max-width");
   const paraSpacing = app.querySelector<HTMLInputElement>("#para-spacing");
   const allowLarge = app.querySelector<HTMLInputElement>("#allow-large");
+  const advancedPages = app.querySelector<HTMLInputElement>("#advanced-pages");
+  const maxPages = app.querySelector<HTMLInputElement>("#max-pages");
   const imageStatus = app.querySelector<HTMLDivElement>("#image-status");
   const fontSizeValue = app.querySelector<HTMLSpanElement>("#font-size-value");
   const lineHeightValue =
@@ -233,6 +249,8 @@ if (app) {
     !maxWidth ||
     !paraSpacing ||
     !allowLarge ||
+    !advancedPages ||
+    !maxPages ||
     !imageStatus ||
     !fontSizeValue ||
     !lineHeightValue ||
@@ -251,6 +269,9 @@ if (app) {
   maxWidth.value = settings.maxWidth.toString();
   paraSpacing.value = settings.paragraphSpacing.toString();
   allowLarge.checked = settings.allowLargeImages;
+  advancedPages.checked = settings.advancedPages;
+  maxPages.value = settings.maxPages.toString();
+  maxPages.disabled = !settings.advancedPages;
 
   const refreshLabels = () => {
     fontSizeValue.textContent = `${settings.fontSize}px`;
@@ -300,6 +321,13 @@ if (app) {
   });
   allowLarge.addEventListener("change", () => {
     updateSettings({ allowLargeImages: allowLarge.checked });
+  });
+  advancedPages.addEventListener("change", () => {
+    maxPages.disabled = !advancedPages.checked;
+    updateSettings({ advancedPages: advancedPages.checked });
+  });
+  maxPages.addEventListener("change", () => {
+    updateSettings({ maxPages: Math.max(1, Number(maxPages.value)) });
   });
 
   const setStatus = (message: string) => {
@@ -370,4 +398,23 @@ if (app) {
       void handleImageFiles(files);
     }
   });
+
+  const getEffectiveMaxPages = () =>
+    settings.advancedPages ? settings.maxPages : 10;
+
+  const runRasterize = async () => {
+    const pageShell = app.querySelector<HTMLElement>(".page-shell");
+    if (!pageShell) {
+      throw new Error("Page shell missing.");
+    }
+    return rasterizePages({
+      previewContent: preview,
+      pageShell,
+      maxPages: getEffectiveMaxPages(),
+      scale: 2,
+    });
+  };
+
+  (window as Window & { msoRasterizePages?: typeof runRasterize }).msoRasterizePages =
+    runRasterize;
 }
