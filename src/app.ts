@@ -46,7 +46,12 @@ if (app) {
       </section>
       <section class="pane">
         <div class="pane-title">Preview</div>
-        <div id="preview" class="preview"></div>
+        <div class="preview-scroll">
+          <div class="page-shell">
+            <div class="page-marker" aria-hidden="true"></div>
+            <div id="preview" class="preview-content"></div>
+          </div>
+        </div>
       </section>
     </main>
   `;

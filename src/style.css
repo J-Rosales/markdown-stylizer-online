@@ -9,6 +9,12 @@ body {
   color: #1f2937;
 }
 
+:root {
+  --page-width: 210mm;
+  --page-height: 297mm;
+  --page-margin: 20mm;
+}
+
 #app {
   min-height: 100vh;
   padding: 32px;
@@ -63,44 +69,84 @@ body {
   color: #111827;
 }
 
-.preview {
+.preview-scroll {
   flex: 1;
   overflow: auto;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  padding: 16px;
-  background: #ffffff;
+  padding: 24px;
+  background: #f8fafc;
 }
 
-.preview h1,
-.preview h2,
-.preview h3 {
+.page-shell {
+  width: var(--page-width);
+  min-height: var(--page-height);
+  margin: 0 auto;
+  background: #ffffff;
+  position: relative;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+}
+
+.page-marker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--page-height);
+  border-top: 2px dashed #94a3b8;
+  pointer-events: none;
+}
+
+.preview-content {
+  padding: var(--page-margin);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.6;
+}
+
+.preview-content h1,
+.preview-content h2,
+.preview-content h3 {
   margin-top: 1.2em;
   margin-bottom: 0.6em;
 }
 
-.preview p {
+.preview-content p {
   margin: 0 0 1em;
-  line-height: 1.6;
 }
 
-.preview ul,
-.preview ol {
+.preview-content ul,
+.preview-content ol {
   margin: 0 0 1em 1.2em;
 }
 
-.preview code {
+.preview-content code {
   font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.95em;
+  word-break: break-word;
 }
 
-.preview pre {
+.preview-content pre {
   background: #0f172a;
   color: #e2e8f0;
   padding: 12px;
   border-radius: 8px;
   overflow: auto;
+  white-space: pre-wrap;
+}
+
+.preview-content table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  max-width: 100%;
+}
+
+.preview-content th,
+.preview-content td {
+  border: 1px solid #e2e8f0;
+  padding: 6px 8px;
+  text-align: left;
 }
 
 @media (max-width: 900px) {
