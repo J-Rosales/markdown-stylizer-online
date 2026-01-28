@@ -5,8 +5,8 @@
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  background: #f6f7f9;
-  color: #1f2937;
+  background: var(--app-bg);
+  color: var(--text-primary);
 }
 
 :root {
@@ -30,7 +30,7 @@ body {
 
 .app-header p {
   margin: 0;
-  color: #4b5563;
+  color: var(--text-muted);
 }
 
 .workspace {
@@ -41,50 +41,87 @@ body {
 }
 
 .pane {
-  background: #ffffff;
+  background: var(--panel-bg);
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 28px var(--shadow-color);
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
 
+.pane-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 .pane-title {
   font-weight: 600;
   margin-bottom: 12px;
-  color: #111827;
+  color: var(--text-primary);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 150px;
+}
+
+.control select,
+.control input[type="range"] {
+  width: 100%;
+}
+
+.control-value {
+  font-size: 12px;
+  color: var(--text-primary);
 }
 
 #editor {
   flex: 1;
   resize: none;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--panel-border);
   border-radius: 10px;
   padding: 12px;
   font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 14px;
   line-height: 1.5;
-  color: #111827;
+  color: var(--text-primary);
+  background: var(--panel-bg);
 }
 
 .preview-scroll {
   flex: 1;
   overflow: auto;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--panel-border);
   border-radius: 10px;
   padding: 24px;
-  background: #f8fafc;
+  background: rgba(148, 163, 184, 0.12);
 }
 
 .page-shell {
   width: var(--page-width);
   min-height: var(--page-height);
   margin: 0 auto;
-  background: #ffffff;
+  background: var(--panel-bg);
   position: relative;
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 20px var(--shadow-color);
 }
 
 .page-marker {
@@ -100,7 +137,10 @@ body {
   padding: var(--page-margin);
   overflow-wrap: anywhere;
   word-break: break-word;
-  line-height: 1.6;
+  line-height: var(--preview-line-height);
+  font-size: var(--preview-font-size);
+  max-width: min(100%, var(--preview-max-width));
+  margin: 0 auto;
 }
 
 .preview-content h1,
@@ -111,7 +151,7 @@ body {
 }
 
 .preview-content p {
-  margin: 0 0 1em;
+  margin: 0 0 var(--preview-paragraph-spacing);
 }
 
 .preview-content ul,
@@ -127,8 +167,8 @@ body {
 }
 
 .preview-content pre {
-  background: #0f172a;
-  color: #e2e8f0;
+  background: var(--code-bg);
+  color: var(--code-text);
   padding: 12px;
   border-radius: 8px;
   overflow: auto;
@@ -144,7 +184,7 @@ body {
 
 .preview-content th,
 .preview-content td {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--panel-border);
   padding: 6px 8px;
   text-align: left;
 }
