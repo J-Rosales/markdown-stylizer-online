@@ -82,6 +82,15 @@ body {
   min-width: 150px;
 }
 
+.control-toggle {
+  min-width: 170px;
+}
+
+.control-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .control select,
 .control input[type="range"] {
   width: 100%;
@@ -90,6 +99,19 @@ body {
 .control-value {
   font-size: 12px;
   color: var(--text-primary);
+}
+
+.status {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-height: 18px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  margin-bottom: 8px;
+}
+
+.status-visible {
+  opacity: 1;
 }
 
 #editor {
@@ -180,6 +202,16 @@ body {
   overflow-x: auto;
   border-collapse: collapse;
   max-width: 100%;
+}
+
+.preview-content img {
+  max-width: 100%;
+  height: auto;
+}
+
+.preview-content img.image-missing {
+  outline: 2px dashed #f97316;
+  padding: 4px;
 }
 
 .preview-content th,

@@ -5,3 +5,4 @@
 - Milestone 1: add markdown preview with sanitization and live updates.
 - Milestone 2: add A4 preview layout with page-1 marker.
 - Milestone 3: add themes, typography controls, and persistence.
+- Milestone 4: add paste/drag-drop images with IndexedDB storage.
