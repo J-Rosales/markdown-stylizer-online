@@ -1,5 +1,11 @@
 import DOMPurify from "dompurify";
 import MarkdownIt from "markdown-it";
+import {
+  MAX_IMAGE_BYTES,
+  insertAtCursor,
+  resolveAppImages,
+  storeImageFile,
+} from "./assets/images";
 import "./style.css";
 
 const app = document.querySelector<HTMLDivElement>("#app");
@@ -18,6 +24,7 @@ type AppSettings = {
   lineHeight: number;
   maxWidth: number;
   paragraphSpacing: number;
+  allowLargeImages: boolean;
 };
 
 const themes: Record<ThemeId, Record<string, string>> = {
@@ -69,6 +76,7 @@ const defaultSettings: AppSettings = {
   lineHeight: 1.6,
   maxWidth: 170,
   paragraphSpacing: 14,
+  allowLargeImages: false,
 };
 
 const settingsKey = "mso-settings";
@@ -177,7 +185,15 @@ if (app) {
             <input id="para-spacing" type="range" min="6" max="24" step="2" />
             <span class="control-value" id="para-spacing-value"></span>
           </label>
+          <label class="control control-toggle">
+            <span>Allow large images</span>
+            <input id="allow-large" type="checkbox" />
+            <span class="control-hint">
+              Default limit: ${Math.round(MAX_IMAGE_BYTES / (1024 * 1024))} MB
+            </span>
+          </label>
         </div>
+        <div id="image-status" class="status" role="status" aria-live="polite"></div>
         <textarea id="editor" spellcheck="false"></textarea>
       </section>
       <section class="pane">
@@ -199,6 +215,8 @@ if (app) {
   const lineHeight = app.querySelector<HTMLInputElement>("#line-height");
   const maxWidth = app.querySelector<HTMLInputElement>("#max-width");
   const paraSpacing = app.querySelector<HTMLInputElement>("#para-spacing");
+  const allowLarge = app.querySelector<HTMLInputElement>("#allow-large");
+  const imageStatus = app.querySelector<HTMLDivElement>("#image-status");
   const fontSizeValue = app.querySelector<HTMLSpanElement>("#font-size-value");
   const lineHeightValue =
     app.querySelector<HTMLSpanElement>("#line-height-value");
@@ -214,6 +232,8 @@ if (app) {
     !lineHeight ||
     !maxWidth ||
     !paraSpacing ||
+    !allowLarge ||
+    !imageStatus ||
     !fontSizeValue ||
     !lineHeightValue ||
     !maxWidthValue ||
@@ -230,6 +250,7 @@ if (app) {
   lineHeight.value = settings.lineHeight.toString();
   maxWidth.value = settings.maxWidth.toString();
   paraSpacing.value = settings.paragraphSpacing.toString();
+  allowLarge.checked = settings.allowLargeImages;
 
   const refreshLabels = () => {
     fontSizeValue.textContent = `${settings.fontSize}px`;
@@ -242,7 +263,10 @@ if (app) {
 
   const render = () => {
     const rawHtml = md.render(editor.value);
-    preview.innerHTML = DOMPurify.sanitize(rawHtml);
+    preview.innerHTML = DOMPurify.sanitize(rawHtml, {
+      ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|appimg):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    });
+    void resolveAppImages(preview);
   };
 
   const renderDebounced = debounce(render, 120);
@@ -273,5 +297,77 @@ if (app) {
   });
   paraSpacing.addEventListener("input", () => {
     updateSettings({ paragraphSpacing: Number(paraSpacing.value) });
+  });
+  allowLarge.addEventListener("change", () => {
+    updateSettings({ allowLargeImages: allowLarge.checked });
+  });
+
+  const setStatus = (message: string) => {
+    imageStatus.textContent = message;
+    if (!message) {
+      imageStatus.classList.remove("status-visible");
+      return;
+    }
+    imageStatus.classList.add("status-visible");
+  };
+
+  const handleImageFiles = async (files: FileList | File[]) => {
+    if (!files.length) {
+      return;
+    }
+    const entries = Array.from(files);
+    const results = await Promise.all(
+      entries.map((file) => storeImageFile(file, settings.allowLargeImages))
+    );
+
+    let inserted = 0;
+    const errors: string[] = [];
+
+    results.forEach((result) => {
+      if ("markdown" in result) {
+        inserted += 1;
+        insertAtCursor(editor, result.markdown);
+      } else {
+        errors.push(`${result.name}: ${result.reason}`);
+      }
+    });
+
+    if (errors.length > 0) {
+      setStatus(errors.join(" "));
+    } else if (inserted > 0) {
+      setStatus(`Inserted ${inserted} image${inserted > 1 ? "s" : ""}.`);
+    }
+  };
+
+  editor.addEventListener("paste", (event) => {
+    const items = event.clipboardData?.items;
+    if (!items) {
+      return;
+    }
+    const files: File[] = [];
+    Array.from(items).forEach((item) => {
+      if (item.kind === "file") {
+        const file = item.getAsFile();
+        if (file) {
+          files.push(file);
+        }
+      }
+    });
+    if (files.length > 0) {
+      event.preventDefault();
+      void handleImageFiles(files);
+    }
+  });
+
+  editor.addEventListener("dragover", (event) => {
+    event.preventDefault();
+  });
+
+  editor.addEventListener("drop", (event) => {
+    event.preventDefault();
+    const files = event.dataTransfer?.files;
+    if (files && files.length > 0) {
+      void handleImageFiles(files);
+    }
   });
 }
