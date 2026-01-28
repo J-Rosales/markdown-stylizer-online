@@ -33,6 +33,8 @@ export type StoreImageResult = {
   id: string;
   markdown: string;
   name: string;
+  alt: string;
+  src: string;
 };
 
 export type StoreImageError = {
@@ -56,6 +58,7 @@ export const storeImageFile = async (
 
   const id = crypto.randomUUID();
   const alt = fallbackAlt(file.name);
+  const src = `appimg://${id}`;
   await putImage({
     id,
     name: file.name || "image",
@@ -68,7 +71,9 @@ export const storeImageFile = async (
   return {
     id,
     name: file.name || "image",
-    markdown: `![${alt}](appimg://${id})`,
+    markdown: `![${alt}](${src})`,
+    alt,
+    src,
   };
 };
 

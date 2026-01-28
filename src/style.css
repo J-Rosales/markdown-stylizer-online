@@ -282,16 +282,19 @@ body {
 }
 #editor {
   flex: 1;
-  resize: none;
   border: 1px solid var(--panel-border);
   border-radius: 10px;
   padding: 12px;
-  font-family: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco,
-    Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 14px;
-  line-height: 1.5;
   color: var(--text-primary);
   background: var(--panel-bg);
+}
+
+#editor .ProseMirror {
+  min-height: 220px;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .preview-scroll {

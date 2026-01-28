@@ -1,9 +1,12 @@
 import DOMPurify from "dompurify";
 import MarkdownIt from "markdown-it";
+import { Editor } from "@tiptap/core";
+import StarterKit from "@tiptap/starter-kit";
+import Image from "@tiptap/extension-image";
+import Markdown from "@tiptap/extension-markdown";
 import {
   MAX_IMAGE_BYTES,
   applyImageOptions,
-  insertAtCursor,
   resolveAppImages,
   storeImageFile,
 } from "./assets/images";
@@ -291,7 +294,7 @@ if (app) {
           </div>
         </div>
         <div id="image-status" class="status" role="status" aria-live="polite"></div>
-        <textarea id="editor" spellcheck="false"></textarea>
+        <div id="editor" class="editor"></div>
       </section>
       <section class="pane">
         <div class="pane-title">Preview</div>
@@ -318,7 +321,7 @@ if (app) {
     </footer>
   `;
 
-  const editor = app.querySelector<HTMLTextAreaElement>("#editor");
+  const editorRoot = app.querySelector<HTMLDivElement>("#editor");
   const preview = app.querySelector<HTMLDivElement>("#preview");
   const themeSelect = app.querySelector<HTMLSelectElement>("#theme-select");
   const fontSize = app.querySelector<HTMLInputElement>("#font-size");
@@ -361,7 +364,7 @@ if (app) {
     app.querySelector<HTMLSpanElement>("#para-spacing-value");
 
   if (
-    !editor ||
+    !editorRoot ||
     !preview ||
     !themeSelect ||
     !fontSize ||
@@ -485,8 +488,10 @@ if (app) {
 
   refreshLabels();
 
+  let currentMarkdown = starterText;
+
   const render = () => {
-    const rawHtml = md.render(editor.value);
+    const rawHtml = md.render(currentMarkdown);
     preview.innerHTML = DOMPurify.sanitize(rawHtml, {
       ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel|appimg):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
     });
@@ -503,10 +508,18 @@ if (app) {
     refreshLabels();
   };
 
-  editor.value = starterText;
-  render();
+  const editorInstance = new Editor({
+    element: editorRoot,
+    extensions: [StarterKit, Image, Markdown],
+    content: md.render(starterText),
+    onUpdate: ({ editor }) => {
+      currentMarkdown = editor.storage.markdown.getMarkdown();
+      renderDebounced();
+      updateFooterStats();
+    },
+  });
 
-  editor.addEventListener("input", renderDebounced);
+  render();
 
   themeSelect.addEventListener("change", () => {
     updateSettings({ theme: themeSelect.value as ThemeId });
@@ -649,11 +662,16 @@ if (app) {
     results.forEach((result) => {
       if ("markdown" in result) {
         inserted += 1;
-        insertAtCursor(editor, result.markdown);
+        editorInstance.commands.setImage({
+          src: result.src,
+          alt: result.alt,
+          title: "",
+        });
       } else {
         errors.push(`${result.name}: ${result.reason}`);
       }
     });
+    void resolveAppImages(editorRoot);
 
     if (errors.length > 0) {
       setStatus(errors.join(" "));
@@ -662,7 +680,7 @@ if (app) {
     }
   };
 
-  editor.addEventListener("paste", (event) => {
+  editorRoot.addEventListener("paste", (event) => {
     const items = event.clipboardData?.items;
     if (!items) {
       return;
@@ -682,11 +700,11 @@ if (app) {
     }
   });
 
-  editor.addEventListener("dragover", (event) => {
+  editorRoot.addEventListener("dragover", (event) => {
     event.preventDefault();
   });
 
-  editor.addEventListener("drop", (event) => {
+  editorRoot.addEventListener("drop", (event) => {
     event.preventDefault();
     const files = event.dataTransfer?.files;
     if (files && files.length > 0) {
@@ -695,7 +713,7 @@ if (app) {
   });
 
   const updateFooterStats = () => {
-    const text = editor.value;
+    const text = currentMarkdown;
     charCount.textContent = `Chars: ${text.length}`;
     const words = text.trim() ? text.trim().split(/\s+/).length : 0;
     wordCount.textContent = `Words: ${words}`;
@@ -704,7 +722,6 @@ if (app) {
   };
 
   updateFooterStats();
-  editor.addEventListener("input", updateFooterStats);
 
   const getEffectiveMaxPages = () =>
     settings.advancedPages ? settings.maxPages : 10;
@@ -751,7 +768,7 @@ if (app) {
     if (inputValue) {
       return inputValue;
     }
-    const headerValue = fallbackFromMarkdown(editor.value);
+    const headerValue = fallbackFromMarkdown(currentMarkdown);
     if (headerValue) {
       return headerValue;
     }
