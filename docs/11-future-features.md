@@ -13,3 +13,9 @@ Notes for potential features after the established milestones.
 - Add footer with common text editor information (character count, etc). offline status goes here.
 - Standardized buttons for margin and padding
 - Per-markdown-element styling
+
+## Toolbar coverage gaps (current)
+- Theme controls, font selection, and font import flow
+- Export actions (PNG/PDF) and filename field
+- Margin/padding presets and guide toggles
+- Offline status and warning reset settings
