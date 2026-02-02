@@ -757,9 +757,6 @@ if (app) {
       updateFontStatusLabel("error");
     }
   };
-  advancedPages.checked = settings.advancedPages;
-  pdfMethod.value = settings.pdfMethod;
-
 
   let currentMarkdown = starterText;
 
