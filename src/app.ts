@@ -42,6 +42,7 @@ const md = new MarkdownIt({
 });
 
 type ThemeId = "light" | "dark" | "paper" | "terminal";
+type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
 type AppSettings = {
   theme: ThemeId;
@@ -98,6 +99,17 @@ const themes: Record<ThemeId, Record<string, string>> = {
     "--code-bg": "#0b0f0c",
     "--code-text": "#c7f9cc",
   },
+};
+
+const parseHeadingLevel = (value: string): HeadingLevel | null => {
+  const numericLevel = Number(value.replace("h", ""));
+  if (!Number.isInteger(numericLevel)) {
+    return null;
+  }
+  if (numericLevel < 1 || numericLevel > 6) {
+    return null;
+  }
+  return numericLevel as HeadingLevel;
 };
 
 const defaultSettings: AppSettings = {
@@ -842,13 +854,16 @@ if (app) {
         return;
       }
       if (level === "paragraph") {
-        const headingLevels = [1, 2, 3, 4, 5, 6];
+        const headingLevels: HeadingLevel[] = [1, 2, 3, 4, 5, 6];
         const anyHeadingActive = headingLevels.some((levelNum) =>
           editorInstance.isActive("heading", { level: levelNum })
         );
         button.classList.toggle("is-active", !anyHeadingActive);
       } else {
-        const numericLevel = Number(level.replace("h", ""));
+        const numericLevel = parseHeadingLevel(level);
+        if (!numericLevel) {
+          return;
+        }
         button.classList.toggle(
           "is-active",
           editorInstance.isActive("heading", { level: numericLevel })
@@ -1180,7 +1195,10 @@ if (app) {
       if (level === "paragraph") {
         editorInstance.chain().focus().setParagraph().run();
       } else {
-        const numericLevel = Number(level.replace("h", ""));
+        const numericLevel = parseHeadingLevel(level);
+        if (!numericLevel) {
+          return;
+        }
         editorInstance
           .chain()
           .focus()
